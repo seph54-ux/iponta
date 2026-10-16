@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IponTa – Tara, Ipon Ta! | Filipino Personal Finance & Budget Tracker</title>
+    <meta name="description" content="IponTa is a Filipino-focused personal finance and budget tracking platform designed to help users take control of their money, monitor spending, achieve savings goals, and build better financial habits." />
+    
+    <!-- OpenGraph Social Cards -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="IponTa" />
+    <meta property="og:title" content="IponTa – Tara, Ipon Ta!" />
+    <meta property="og:description" content="IponTa is a Filipino-focused personal finance and budget tracking platform designed to help users take control of their money, monitor spending, achieve savings goals, and build better financial habits." />
+    
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="IponTa – Tara, Ipon Ta!" />
+    <meta name="twitter:description" content="IponTa is a Filipino-focused personal finance and budget tracking platform designed to help users take control of their money, monitor spending, achieve savings goals, and build better financial habits." />
+    
+    <!-- PWA Manifest & Theme Color -->
+    <meta name="theme-color" content="#047857" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "IponTa",
+      "alternateName": "IponTa – Tara, Ipon Ta!",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "All",
+      "description": "IponTa is a Filipino-focused personal finance and budget tracking platform designed to help users take control of their money, monitor spending, achieve savings goals, and build better financial habits.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+      }
+    }
+    </script>
+    <!-- Suppress unhandled WebSocket rejections in dev/proxy environments -->
+    <script>
+      (function() {
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = event && event.reason;
+          var msg = reason && (reason.message || (typeof reason === 'string' ? reason : ''));
+          if (msg && (msg.indexOf('WebSocket') !== -1 || msg.indexOf('websocket') !== -1)) {
+            event.preventDefault();
+            if (typeof event.stopImmediatePropagation === 'function') {
+              event.stopImmediatePropagation();
+            }
+          }
+        });
+      })();
+    </script>
+    <!-- Immediate Theme Initialization Script (Avoids FOUC) -->
+    <script>
+      (function() {
+        try {
+          var mode = localStorage.getItem('iponta_dark_mode') || localStorage.getItem('balanse_ph_dark_mode');
+          if (mode === 'false') {
+            document.documentElement.classList.remove('dark');
+          } else {
+            document.documentElement.classList.add('dark');
+          }
+        } catch(e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-[#FAF8F5] dark:bg-[#12181F] text-[#2C3E35] dark:text-[#E2E8F0] font-sans antialiased selection:bg-[#D1E7DD] dark:selection:bg-[#2D4A3E]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

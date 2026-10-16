@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  /* Pastel Palette Tokens */
+  --color-mint-50: #F2F9F5;
+  --color-mint-100: #E2F2E9;
+  --color-mint-200: #C2E5D2;
+  --color-mint-500: #2E7D5B;
+  --color-mint-600: #1D5C40;
+  --color-mint-700: #14432E;
+
+  --color-lavender-50: #F8F5FF;
+  --color-lavender-100: #EFE8FF;
+  --color-lavender-200: #DDD0FF;
+  --color-lavender-500: #7C5CFC;
+
+  --color-peach-50: #FFF8F5;
+  --color-peach-100: #FFEDE5;
+  --color-peach-500: #E06D53;
+
+  --color-sky-50: #F0F9FF;
+  --color-sky-100: #E0F2FE;
+  --color-sky-500: #0284C7;
+
+  --color-butter-50: #FFFDF0;
+  --color-butter-100: #FFF9C4;
+  --color-butter-500: #D97706;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+  }
+}
+
+/* Custom Scrollbars for clean aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+/* Utility class for tabular numbers in financial figures */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #iponta-pdf-report-content,
+  #iponta-pdf-report-content * {
+    visibility: visible;
+  }
+  #iponta-pdf-report-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+}

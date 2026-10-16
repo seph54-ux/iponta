@@ -1,0 +1,16 @@
+{
+  "name": "IponTa – Tara, Ipon Ta!",
+  "short_name": "IponTa",
+  "description": "IponTa is a Filipino-focused personal finance and budget tracking platform designed to help users take control of their money, monitor spending, achieve savings goals, and build better financial habits.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF8F5",
+  "theme_color": "#047857",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
