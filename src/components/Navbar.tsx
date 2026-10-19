@@ -26,6 +26,7 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 import { UserProfile } from '../types';
 
 interface NavbarProps {
@@ -361,6 +362,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>Automated Calc Tests</span>
               </button>
             )}
+
+            <div className="pt-2 pb-1">
+              <PWAInstallButton />
+            </div>
 
             {onOpenPolicies && (
               <button

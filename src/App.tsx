@@ -329,7 +329,7 @@ export default function App() {
       />
 
       {/* Main App Workspace */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col lg:flex-row gap-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 flex flex-col lg:flex-row lg:items-start gap-6">
         
         {/* Navigation Sidebar (Desktop view) */}
         <Sidebar

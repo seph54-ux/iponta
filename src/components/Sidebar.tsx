@@ -1,5 +1,6 @@
 import React from 'react';
 import { LayoutDashboard, Landmark, Tag, Receipt, Wallet, Sparkles, CreditCard, PiggyBank, Users, Activity, TrendingUp, Flame, FileSpreadsheet, History, ShieldCheck, Cpu, Settings, LogOut } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface SidebarProps {
   activeTab: string;
@@ -39,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="hidden lg:block w-64 bg-white dark:bg-[#1E293B] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 space-y-5 shrink-0 shadow-xs">
+    <aside className="hidden lg:block w-64 h-fit self-start bg-white dark:bg-[#1E293B] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 space-y-5 shrink-0 shadow-xs">
       
       {/* Brand Hero Card in Sidebar */}
       <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/60 dark:from-emerald-950/40 dark:to-teal-950/20 border border-emerald-200/80 dark:border-emerald-800/60 flex items-center gap-3">
@@ -126,8 +127,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
-      {/* Compliance & Logout */}
-      <div className="space-y-1 pt-4 border-t border-slate-100 dark:border-slate-800">
+      {/* PWA Install, Policies & Logout */}
+      <div className="space-y-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+        <PWAInstallButton />
+
         <button
           onClick={onOpenPolicies}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"

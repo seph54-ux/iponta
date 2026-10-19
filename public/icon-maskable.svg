@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="maskableBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="50%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#064e3b" />
+    </linearGradient>
+    <filter id="maskableShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Full-bleed background for maskable icon -->
+  <rect width="512" height="512" fill="url(#maskableBg)" />
+
+  <!-- Inner circular badge positioned comfortably in safe zone (central 80%, radius 145) -->
+  <circle cx="256" cy="256" r="145" fill="#ffffff" fill-opacity="0.12" stroke="#ffffff" stroke-opacity="0.25" stroke-width="4" />
+
+  <!-- Filipino Peso Symbol ₱ safely inside the center -->
+  <g filter="url(#maskableShadow)" transform="translate(256, 256)">
+    <text
+      x="0"
+      y="48"
+      font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+      font-size="200"
+      font-weight="900"
+      text-anchor="middle"
+      fill="#ffffff"
+    >₱</text>
+  </g>
+
+  <!-- Little sparkle indicator -->
+  <circle cx="340" cy="170" r="12" fill="#fbbf24" filter="url(#maskableShadow)" />
+</svg>

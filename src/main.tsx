@@ -1,7 +1,13 @@
 import { createRoot } from 'react-dom/client';
+import { registerSW } from 'virtual:pwa-register';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import './index.css';
+
+// Automatically register and update PWA service worker
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  registerSW({ immediate: true });
+}
 
 // Guard against unhandled WebSocket connection rejections in sandboxed dev environments
 if (typeof window !== 'undefined') {
