@@ -202,6 +202,14 @@ function getKey(userId: string, keyName: string): string {
   return `${STORAGE_PREFIX}${userId}_${keyName}`;
 }
 
+export interface OfflineSyncItem {
+  id: string;
+  table: string;
+  operation: 'UPSERT' | 'DELETE';
+  payload?: any;
+  timestamp: string;
+}
+
 export class StorageService {
   private userId: string;
 
@@ -224,6 +232,101 @@ export class StorageService {
       localStorage.setItem(getKey(this.userId, key), JSON.stringify(value));
     } catch (e) {
       console.error('Storage set error:', e);
+    }
+  }
+
+  // OFFLINE SYNCHRONIZATION QUEUE & STATUS
+  getOfflineSyncQueue(): OfflineSyncItem[] {
+    return this.get<OfflineSyncItem[]>('offline_sync_queue', []);
+  }
+
+  addToSyncQueue(table: string, operation: 'UPSERT' | 'DELETE', payload?: any): void {
+    const queue = this.getOfflineSyncQueue();
+    const item: OfflineSyncItem = {
+      id: `sync_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      table,
+      operation,
+      payload,
+      timestamp: new Date().toISOString(),
+    };
+    queue.push(item);
+    this.set('offline_sync_queue', queue);
+    this.set('has_pending_sync', true);
+    this.notifySyncStatus(false, queue.length);
+  }
+
+  clearSyncQueue(): void {
+    this.set('offline_sync_queue', []);
+    this.set('has_pending_sync', false);
+    this.notifySyncStatus(false, 0);
+  }
+
+  hasPendingSync(): boolean {
+    return this.get<boolean>('has_pending_sync', false) || this.getOfflineSyncQueue().length > 0;
+  }
+
+  getPendingSyncCount(): number {
+    return this.getOfflineSyncQueue().length;
+  }
+
+  getLastSyncedAt(): string | null {
+    return this.get<string | null>('last_synced_at', null);
+  }
+
+  setLastSyncedAt(timestamp: string): void {
+    this.set('last_synced_at', timestamp);
+  }
+
+  notifySyncStatus(isSyncing: boolean, count?: number): void {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('iponta-sync-status', {
+          detail: {
+            isSyncing,
+            pendingCount: typeof count === 'number' ? count : this.getPendingSyncCount(),
+            lastSyncedAt: this.getLastSyncedAt(),
+            userId: this.userId,
+          },
+        })
+      );
+    }
+  }
+
+  async syncPendingChanges(force: boolean = false): Promise<{ success: boolean; syncedCount: number; message: string }> {
+    const isOnline = typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean' ? navigator.onLine : true;
+    if (!isOnline) {
+      return {
+        success: false,
+        syncedCount: this.getPendingSyncCount(),
+        message: 'Device is offline. Changes are saved locally and will auto-sync when reconnected.',
+      };
+    }
+
+    const pendingCount = this.getPendingSyncCount();
+    if (!force && pendingCount === 0 && !this.hasPendingSync()) {
+      return { success: true, syncedCount: 0, message: 'Already up to date' };
+    }
+
+    this.notifySyncStatus(true, pendingCount);
+
+    try {
+      const result = await this.pushAllLocalDataToSupabase();
+      if (result.success) {
+        this.clearSyncQueue();
+        const now = new Date().toISOString();
+        this.setLastSyncedAt(now);
+        this.notifySyncStatus(false, 0);
+        return { success: true, syncedCount: pendingCount, message: 'All offline changes synchronized successfully!' };
+      } else {
+        // If Supabase is unconfigured, mark local state as clear and complete
+        this.clearSyncQueue();
+        this.notifySyncStatus(false, 0);
+        return { success: true, syncedCount: pendingCount, message: 'Local offline state up to date.' };
+      }
+    } catch (err: any) {
+      console.warn('syncPendingChanges error:', err);
+      this.notifySyncStatus(false, pendingCount);
+      return { success: false, syncedCount: pendingCount, message: err?.message || 'Sync error' };
     }
   }
 
@@ -257,6 +360,7 @@ export class StorageService {
       this.addAuditLog('CREATE', 'ACCOUNT', account.id, `Created new account: ${account.name}`, 'User');
     }
     this.set('financial_accounts', list);
+    this.addToSyncQueue('financial_accounts', 'UPSERT', account);
     supabaseDbService.upsertAccount(this.userId, account);
     return account;
   }
@@ -265,6 +369,7 @@ export class StorageService {
     const list = this.getAccounts().filter(a => a.id !== id);
     this.set('financial_accounts', list);
     this.addAuditLog('DELETE', 'ACCOUNT', id, 'Deleted account container', 'User');
+    this.addToSyncQueue('financial_accounts', 'DELETE', { id });
     supabaseDbService.deleteAccount(this.userId, id);
   }
 
@@ -397,6 +502,9 @@ export class StorageService {
     this.set('financial_accounts', accounts);
     this.set('transactions', sorted);
 
+    this.addToSyncQueue('transactions', 'UPSERT', transaction);
+    accounts.forEach(a => this.addToSyncQueue('financial_accounts', 'UPSERT', a));
+
     // Live sync transaction and modified accounts to Supabase PostgreSQL
     supabaseDbService.upsertTransaction(this.userId, transaction, accounts);
     accounts.forEach(a => supabaseDbService.upsertAccount(this.userId, a));
@@ -415,6 +523,9 @@ export class StorageService {
       const updated = list.filter(t => t.id !== id);
       this.set('transactions', updated);
       this.addAuditLog('DELETE', 'TRANSACTION', id, `Deleted transaction: ${target.description} (₱${target.amount})`, userName, JSON.stringify(target));
+
+      this.addToSyncQueue('transactions', 'DELETE', { id });
+      accounts.forEach(a => this.addToSyncQueue('financial_accounts', 'UPSERT', a));
 
       // Live delete in Supabase and update accounts
       supabaseDbService.deleteTransaction(this.userId, id);
@@ -437,6 +548,7 @@ export class StorageService {
       custom.push({ ...category, isCustom: true });
     }
     this.set('custom_categories', custom);
+    this.addToSyncQueue('categories', 'UPSERT', category);
     supabaseDbService.upsertCategory(this.userId, category);
     return category;
   }
@@ -444,6 +556,7 @@ export class StorageService {
   deleteCategory(id: string): void {
     const custom = this.get<Category[]>('custom_categories', []).filter(c => c.id !== id);
     this.set('custom_categories', custom);
+    this.addToSyncQueue('categories', 'DELETE', { id });
     supabaseDbService.deleteCategory(this.userId, id);
   }
 
@@ -483,12 +596,14 @@ export class StorageService {
       list.push(budget);
     }
     this.set('budgets', list);
+    this.addToSyncQueue('budget_limits', 'UPSERT', budget);
     supabaseDbService.upsertBudget(this.userId, budget);
   }
 
   deleteBudget(budgetId: string): void {
     const list = this.getBudgets().filter(b => b.id !== budgetId);
     this.set('budgets', list);
+    this.addToSyncQueue('budget_limits', 'DELETE', { id: budgetId });
     supabaseDbService.deleteBudget(this.userId, budgetId);
   }
 
@@ -507,6 +622,7 @@ export class StorageService {
       } else {
         list.push(newB);
       }
+      this.addToSyncQueue('budget_limits', 'UPSERT', newB);
       supabaseDbService.upsertBudget(this.userId, newB);
     });
     this.set('budgets', list);
@@ -578,6 +694,7 @@ export class StorageService {
       list.unshift({ ...cycle, createdAt: new Date().toISOString() });
     }
     this.set('budget_cycles', list);
+    this.addToSyncQueue('budget_cycles', 'UPSERT', cycle);
     return cycle;
   }
 
@@ -587,6 +704,7 @@ export class StorageService {
     // Also remove cycle-specific budgets
     const budgets = this.getBudgets().filter(b => b.cycleId !== cycleId);
     this.set('budgets', budgets);
+    this.addToSyncQueue('budget_cycles', 'DELETE', { id: cycleId });
   }
 
   // Savings Goals
@@ -603,12 +721,14 @@ export class StorageService {
       list.push(goal);
     }
     this.set('savings_goals', list);
+    this.addToSyncQueue('savings_goals', 'UPSERT', goal);
     supabaseDbService.upsertSavingsGoal(this.userId, goal);
   }
 
   deleteSavingsGoal(id: string): void {
     const list = this.getSavingsGoals().filter(g => g.id !== id);
     this.set('savings_goals', list);
+    this.addToSyncQueue('savings_goals', 'DELETE', { id });
     supabaseDbService.deleteSavingsGoal(this.userId, id);
   }
 
@@ -626,12 +746,14 @@ export class StorageService {
       list.push(bill);
     }
     this.set('recurring_bills', list);
+    this.addToSyncQueue('recurring_bills', 'UPSERT', bill);
     supabaseDbService.upsertRecurringBill(this.userId, bill);
   }
 
   deleteRecurringBill(id: string): void {
     const list = this.getRecurringBills().filter(b => b.id !== id);
     this.set('recurring_bills', list);
+    this.addToSyncQueue('recurring_bills', 'DELETE', { id });
     supabaseDbService.deleteRecurringBill(this.userId, id);
   }
 
@@ -649,12 +771,14 @@ export class StorageService {
       list.push(installment);
     }
     this.set('installments', list);
+    this.addToSyncQueue('installments', 'UPSERT', installment);
     supabaseDbService.upsertInstallment(this.userId, installment);
   }
 
   deleteInstallment(id: string): void {
     const list = this.getInstallments().filter(i => i.id !== id);
     this.set('installments', list);
+    this.addToSyncQueue('installments', 'DELETE', { id });
     supabaseDbService.deleteInstallment(this.userId, id);
   }
 
@@ -672,12 +796,14 @@ export class StorageService {
       list.push(debt);
     }
     this.set('debts', list);
+    this.addToSyncQueue('debt_loans', 'UPSERT', debt);
     supabaseDbService.upsertDebt(this.userId, debt);
   }
 
   deleteDebt(id: string): void {
     const list = this.getDebts().filter(d => d.id !== id);
     this.set('debts', list);
+    this.addToSyncQueue('debt_loans', 'DELETE', { id });
     supabaseDbService.deleteDebt(this.userId, id);
   }
 
@@ -690,6 +816,7 @@ export class StorageService {
     const list = this.getPaydayAllocations();
     list.unshift(alloc);
     this.set('payday_allocations', list);
+    this.addToSyncQueue('payday_allocations', 'UPSERT', alloc);
     supabaseDbService.upsertPaydayAllocation(this.userId, alloc);
   }
 
@@ -703,6 +830,7 @@ export class StorageService {
 
   saveHouseholdMembers(members: HouseholdMember[]): void {
     this.set('household_members', members);
+    members.forEach(m => this.addToSyncQueue('household_members', 'UPSERT', m));
     supabaseDbService.upsertHouseholdMembers(this.userId, members);
   }
 
@@ -932,6 +1060,7 @@ export class StorageService {
     this.set('payday_allocations', []);
 
     this.addAuditLog('DELETE', 'TRANSACTION', 'reset_all', 'Reset all transactions, budgets, bills, and balances to zero for fresh start', userName);
+    this.addToSyncQueue('all', 'DELETE');
 
     // Live reset in Supabase PostgreSQL: wipe records and push 0-balance accounts
     supabaseDbService.resetAllUserDataInSupabase(this.userId).then(() => {

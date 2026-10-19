@@ -28,6 +28,7 @@ import { SettingsView } from './components/SettingsView';
 import { CategoriesView } from './components/CategoriesView';
 import { PDFReportGenerator } from './components/PDFReportGenerator';
 import { exportFinancialReportPDF } from './utils/pdfReportService';
+import { OfflineSyncBanner } from './components/OfflineSyncBanner';
 
 export default function App() {
   // User & Auth State
@@ -214,6 +215,7 @@ export default function App() {
   if (!userProfile) {
     return (
       <>
+        <OfflineSyncBanner storage={storage} onSyncComplete={reloadData} />
         <AuthScreen
           onLoginSuccess={handleLoginSuccess}
           onOpenPolicies={() => setShowPoliciesModal(true)}
@@ -308,6 +310,9 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FAF8F5] dark:bg-[#12181F] text-[#2C3E35] dark:text-[#E2E8F0] font-sans flex flex-col transition-colors duration-200 overflow-x-hidden">
       
+      {/* Offline Connectivity & Auto-Sync Banner */}
+      <OfflineSyncBanner storage={storage} onSyncComplete={reloadData} />
+
       {/* Top Navbar */}
       <Navbar
         activeTab={activeTab}

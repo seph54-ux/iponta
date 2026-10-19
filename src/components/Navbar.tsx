@@ -25,9 +25,11 @@ import {
   ChevronDown,
   Sun,
   Moon,
+  RefreshCw,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { UserProfile } from '../types';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 interface NavbarProps {
   activeTab: string;
@@ -63,6 +65,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { isOnline, isSyncing, pendingCount } = useOnlineStatus();
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -218,6 +221,41 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Zone 3: Primary Actions (Theme icon cleanly removed) */}
         <div className="flex items-center gap-2 sm:gap-2.5">
           
+          {/* Connectivity Status Indicator */}
+          {!isOnline ? (
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/80"
+              title="Offline Mode: All edits and records are stored locally"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              <span>Offline</span>
+            </div>
+          ) : isSyncing ? (
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-teal-100 dark:bg-teal-950/60 text-teal-900 dark:text-teal-300 border border-teal-300/80 dark:border-teal-700/80 animate-pulse"
+              title="Synchronizing data with cloud"
+            >
+              <RefreshCw className="w-2.5 h-2.5 animate-spin text-teal-600 dark:text-teal-400" />
+              <span>Syncing</span>
+            </div>
+          ) : pendingCount > 0 ? (
+            <div
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+              title={`${pendingCount} changes waiting to sync`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+              <span>{pendingCount} Queued</span>
+            </div>
+          ) : (
+            <div
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60"
+              title="Cloud Connected & Synced"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span>Synced</span>
+            </div>
+          )}
+
           {/* Quick Add Record Button */}
           <button
             onClick={onOpenNewTransaction}
