@@ -189,6 +189,8 @@ export interface UserProfile {
   isDarkMode: boolean;
   currencySymbol: string;
   createdAt: string;
+  isNewSignup?: boolean;
+  isExistingUser?: boolean;
 }
 
 export interface HealthCheckResult {

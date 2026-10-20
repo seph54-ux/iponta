@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { getSupabaseClient } from '../lib/supabase';
-import { Lock, Mail, User, AlertCircle, CheckCircle2, ArrowRight, FileText } from 'lucide-react';
+import { Lock, Mail, User, AlertCircle, CheckCircle2, ArrowRight, FileText, UserPlus, LogIn } from 'lucide-react';
 
 interface AuthScreenProps {
-  onLoginSuccess: (profile: UserProfile) => void;
+  onLoginSuccess: (profile: UserProfile, isNewSignup?: boolean) => void;
   onOpenPolicies: () => void;
 }
 
@@ -55,8 +55,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [loginPassword, setLoginPassword] = useState('');
   const [loginAgreed, setLoginAgreed] = useState(false);
 
-  // Status Messages
+  // Status Messages & Action Prompts
   const [errorMsg, setErrorMsg] = useState('');
+  const [promptAction, setPromptAction] = useState<'signup' | 'login' | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -64,6 +65,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setPromptAction(null);
     setSuccessMsg('');
 
     const trimmedUsername = signupUsername.trim();
@@ -87,7 +89,48 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setIsLoading(true);
 
     try {
+      const accounts = getRegisteredAccounts();
+
+      // 1. Verify if email or username is ALREADY in the local accounts database
+      const existingEmail = accounts.find(a => a.email.toLowerCase() === trimmedEmail.toLowerCase());
+      const existingUsername = accounts.find(a => a.username.toLowerCase() === trimmedUsername.toLowerCase());
+
+      // 2. Also verify against Supabase profiles table if Supabase is connected
       const supabase = getSupabaseClient();
+      let supabaseEmailExists = false;
+      let supabaseUsernameExists = false;
+
+      if (supabase) {
+        try {
+          const { data: profileRow } = await supabase
+            .from('profiles')
+            .select('id, email, username')
+            .or(`email.ilike.${trimmedEmail},username.ilike.${trimmedUsername}`)
+            .maybeSingle();
+
+          if (profileRow) {
+            if (profileRow.email?.toLowerCase() === trimmedEmail.toLowerCase()) supabaseEmailExists = true;
+            if (profileRow.username?.toLowerCase() === trimmedUsername.toLowerCase()) supabaseUsernameExists = true;
+          }
+        } catch (e) {
+          console.warn('Supabase profile duplicate check warning:', e);
+        }
+      }
+
+      if (existingEmail || supabaseEmailExists) {
+        setIsLoading(false);
+        setErrorMsg(`An account with the email "${trimmedEmail}" is already registered. Please sign in instead.`);
+        setPromptAction('login');
+        return;
+      }
+
+      if (existingUsername || supabaseUsernameExists) {
+        setIsLoading(false);
+        setErrorMsg(`The username "${trimmedUsername}" is already registered. Please choose another username or sign in.`);
+        setPromptAction('login');
+        return;
+      }
+
       let userId = 'usr_' + btoa(trimmedEmail.toLowerCase()).replace(/=/g, '').substring(0, 12);
 
       if (supabase) {
@@ -119,7 +162,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         }
       }
 
-      // Store in local account vault to guarantee 100% login success
+      // Store in local account vault
       saveRegisteredAccount({
         id: userId,
         email: trimmedEmail,
@@ -136,9 +179,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         isDarkMode: false,
         currencySymbol: '₱',
         createdAt: new Date().toISOString(),
+        isNewSignup: true,
+        isExistingUser: false,
       };
 
-      onLoginSuccess(profile);
+      // Newly signed-up user -> isNewSignup = true
+      onLoginSuccess(profile, true);
     } catch (err: any) {
       setErrorMsg(err.message || 'Signup failed. Please check credentials and try again.');
     } finally {
@@ -150,6 +196,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setPromptAction(null);
     setSuccessMsg('');
 
     const input = loginIdentifier.trim();
@@ -169,38 +216,72 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       const supabase = getSupabaseClient();
       const accounts = getRegisteredAccounts();
 
-      // Check registered accounts in local vault first
+      // 1. Verify first if the inputted username or email exists in the local database
       const localMatch = accounts.find(
         a => a.email.toLowerCase() === input.toLowerCase() || a.username.toLowerCase() === input.toLowerCase()
       );
 
-      if (localMatch) {
-        if (localMatch.passwordHash === loginPassword) {
-          const profile: UserProfile = {
-            id: localMatch.id,
-            email: localMatch.email,
-            username: localMatch.username,
-            hasAcceptedTerms: true,
-            termsAcceptedDate: new Date().toISOString(),
-            isDarkMode: false,
-            currencySymbol: '₱',
-            createdAt: new Date().toISOString(),
-          };
-          onLoginSuccess(profile);
-          setIsLoading(false);
-          return;
+      // 2. Also verify if it exists in Supabase profiles table
+      let supabaseUserMatch: { id: string; email: string; username: string } | null = null;
+      if (supabase) {
+        try {
+          const { data: profileRow } = await supabase
+            .from('profiles')
+            .select('id, email, username')
+            .or(`email.ilike.${input},username.ilike.${input}`)
+            .maybeSingle();
+
+          if (profileRow) {
+            supabaseUserMatch = profileRow;
+          }
+        } catch (e) {
+          console.warn('Supabase user verification warning:', e);
         }
+      }
+
+      const accountExists = !!localMatch || !!supabaseUserMatch;
+
+      // REQUIREMENT: If the inputted username/email address is NOT in the database, prompt user to signup first!
+      if (!accountExists) {
+        setIsLoading(false);
+        setErrorMsg(`Account not found: "${input}" is not registered in our database. Please sign up first.`);
+        setPromptAction('signup');
+        return;
+      }
+
+      // If user exists locally and password matches
+      if (localMatch && localMatch.passwordHash === loginPassword) {
+        const profile: UserProfile = {
+          id: localMatch.id,
+          email: localMatch.email,
+          username: localMatch.username,
+          hasAcceptedTerms: true,
+          termsAcceptedDate: new Date().toISOString(),
+          isDarkMode: false,
+          currencySymbol: '₱',
+          createdAt: new Date().toISOString(),
+          isExistingUser: true,
+          isNewSignup: false,
+        };
+
+        // Mark as existing user so they are NEVER prompted again and their data is protected
+        localStorage.setItem(`iponta_prompted_fresh_${localMatch.id}`, 'true');
+        localStorage.setItem(`iponta_is_existing_user_${localMatch.id}`, 'true');
+
+        onLoginSuccess(profile, false);
+        setIsLoading(false);
+        return;
       }
 
       // If Supabase is connected, attempt Supabase Auth Sign In
       if (supabase) {
-        let targetEmail = input;
+        let targetEmail = supabaseUserMatch?.email || (input.includes('@') ? input : null);
 
-        if (!targetEmail.includes('@')) {
+        if (!targetEmail) {
           const { data: profileRow } = await supabase
             .from('profiles')
             .select('email')
-            .eq('username', targetEmail)
+            .eq('username', input)
             .maybeSingle();
 
           if (profileRow?.email) {
@@ -208,69 +289,58 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           }
         }
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: targetEmail,
-          password: loginPassword,
-        });
+        if (targetEmail) {
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: targetEmail,
+            password: loginPassword,
+          });
 
-        if (error) {
-          throw new Error('Authentication Failed: Invalid username/email or password.');
-        }
+          if (error) {
+            throw new Error('Authentication Failed: Incorrect password for this account. Please try again.');
+          }
 
-        if (data.user) {
-          const { data: profileRow } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.user.id)
-            .maybeSingle();
+          if (data.user) {
+            const { data: profileRow } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .maybeSingle();
 
-          const profile: UserProfile = {
-            id: data.user.id,
-            email: data.user.email || targetEmail,
-            username: profileRow?.username || data.user.user_metadata?.username || targetEmail.split('@')[0],
-            householdName: profileRow?.household_name,
-            hasAcceptedTerms: true,
-            termsAcceptedDate: profileRow?.terms_accepted_date || new Date().toISOString(),
-            isDarkMode: false,
-            currencySymbol: profileRow?.currency_symbol || '₱',
-            createdAt: profileRow?.created_at || new Date().toISOString(),
-          };
+            const profile: UserProfile = {
+              id: data.user.id,
+              email: data.user.email || targetEmail,
+              username: profileRow?.username || data.user.user_metadata?.username || (supabaseUserMatch?.username || targetEmail.split('@')[0]),
+              householdName: profileRow?.household_name,
+              hasAcceptedTerms: true,
+              termsAcceptedDate: profileRow?.terms_accepted_date || new Date().toISOString(),
+              isDarkMode: false,
+              currencySymbol: profileRow?.currency_symbol || '₱',
+              createdAt: profileRow?.created_at || new Date().toISOString(),
+              isExistingUser: true,
+              isNewSignup: false,
+            };
 
-          onLoginSuccess(profile);
-          setIsLoading(false);
-          return;
+            // Store in local vault so offline mode also works
+            saveRegisteredAccount({
+              id: data.user.id,
+              email: profile.email,
+              username: profile.username,
+              passwordHash: loginPassword,
+            });
+
+            // Mark as existing user so they are NEVER prompted again
+            localStorage.setItem(`iponta_prompted_fresh_${data.user.id}`, 'true');
+            localStorage.setItem(`iponta_is_existing_user_${data.user.id}`, 'true');
+
+            onLoginSuccess(profile, false);
+            setIsLoading(false);
+            return;
+          }
         }
       }
 
-      // If local match exists but password failed
-      if (localMatch && localMatch.passwordHash !== loginPassword) {
-        throw new Error('Authentication Failed: Invalid username/email or password.');
-      }
-
-      // Fallback for new credentials during testing
-      const derivedEmail = input.includes('@') ? input : `${input}@user.iponta.ph`;
-      const derivedUsername = input.includes('@') ? input.split('@')[0] : input;
-      const userId = 'usr_' + btoa(derivedEmail.toLowerCase()).replace(/=/g, '').substring(0, 12);
-
-      const profile: UserProfile = {
-        id: userId,
-        email: derivedEmail,
-        username: derivedUsername,
-        hasAcceptedTerms: true,
-        termsAcceptedDate: new Date().toISOString(),
-        isDarkMode: false,
-        currencySymbol: '₱',
-        createdAt: new Date().toISOString(),
-      };
-
-      saveRegisteredAccount({
-        id: userId,
-        email: derivedEmail,
-        username: derivedUsername,
-        passwordHash: loginPassword,
-      });
-
-      onLoginSuccess(profile);
+      // If account was found in database but password did not match
+      throw new Error('Authentication Failed: Incorrect password for this account. Please verify your credentials and try again.');
     } catch (err: any) {
       setErrorMsg(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -326,9 +396,48 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         <div className="p-6">
           
           {errorMsg && (
-            <div className="p-3 mb-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
+            <div className="p-3.5 mb-4 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs space-y-2.5">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+                <span className="font-medium leading-relaxed">{errorMsg}</span>
+              </div>
+
+              {promptAction === 'signup' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(true);
+                    setPromptAction(null);
+                    setErrorMsg('');
+                    if (loginIdentifier.includes('@')) {
+                      setSignupEmail(loginIdentifier);
+                      setSignupUsername(loginIdentifier.split('@')[0]);
+                    } else {
+                      setSignupUsername(loginIdentifier);
+                    }
+                  }}
+                  className="w-full py-2 px-3 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Sign Up with &quot;{loginIdentifier}&quot;</span>
+                </button>
+              )}
+
+              {promptAction === 'login' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(false);
+                    setPromptAction(null);
+                    setErrorMsg('');
+                    setLoginEmailOrUsername(signupEmail || signupUsername);
+                  }}
+                  className="w-full py-2 px-3 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-500 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Switch to Sign In</span>
+                </button>
+              )}
             </div>
           )}
 

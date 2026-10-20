@@ -906,11 +906,20 @@ export class StorageService {
     }
   }
 
-  // Seed initial sample data for PH context ONLY if clean start is not marked
+  // Seed initial sample data for PH context ONLY if clean start is not marked AND not an existing user
   seedSamplePHData(userName: string = 'User'): void {
     if (this.isCleanStart()) {
       return; // Do NOT seed sample data if user chose clean start or reset to zero!
     }
+    // Verified or existing users must never have sample data seeded over their existing setup
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const isExisting = localStorage.getItem(`iponta_is_existing_user_${this.userId}`) === 'true' ||
+                           localStorage.getItem(`iponta_prompted_fresh_${this.userId}`) === 'true';
+        if (isExisting) return;
+      }
+    } catch {}
+
     if (this.getTransactions().length > 0) return;
 
     const sampleAccounts: FinancialAccount[] = [
